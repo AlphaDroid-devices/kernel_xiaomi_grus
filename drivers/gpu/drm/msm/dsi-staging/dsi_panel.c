@@ -23,6 +23,7 @@
 #include "dsi_panel.h"
 #include "dsi_display.h"
 #include "dsi_ctrl_hw.h"
+#include "exposure_adjustment.h"
 
 #ifdef CONFIG_KLAPSE
 #include <linux/klapse.h>
@@ -758,6 +759,15 @@ static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	if (panel->type == EXT_BRIDGE)
 		return 0;
 
+#ifdef CONFIG_EXPOSURE_ADJUSTMENT
+	if (ea_enabled) {
+		if (type == DSI_CMD_SET_ON)
+			ea_panel_mode_ctrl(panel, true);
+		else if (type == DSI_CMD_SET_OFF)
+			ea_panel_mode_ctrl(panel, false);
+	}
+#endif
+
 	mode = panel->cur_mode;
 
 	cmds = mode->priv_info->cmd_sets[type].cmds;
@@ -1018,6 +1028,10 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 
 	if (panel->type == EXT_BRIDGE)
 		return 0;
+
+#ifdef CONFIG_EXPOSURE_ADJUSTMENT
+	bl_lvl = ea_panel_calc_backlight(bl_lvl);
+#endif
 
 	pr_debug("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
 	switch (bl->type) {
