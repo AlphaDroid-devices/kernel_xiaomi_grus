@@ -38,5 +38,6 @@
 extern unsigned int ea_enabled;
 
 void ea_panel_mode_ctrl(struct dsi_panel *panel, bool enable);
+bool ea_panel_is_enabled(void);
 u32 ea_panel_calc_backlight(u32 bl_lvl);
 #endif /* EXPOSURE_ADJUSTMENT_H */
