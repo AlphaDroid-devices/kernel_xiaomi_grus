@@ -1472,7 +1472,7 @@ static void goodix_ts_esd_work(struct work_struct *work)
 	int r = 0;
 	u8 data = GOODIX_ESD_TICK_WRITE_DATA;
 
-	if (ts_esd->esd_on == false)
+	if (!atomic_read(&ts_esd->esd_on))
 		return;
 
 	if (hw_ops->check_hw)
@@ -1507,10 +1507,8 @@ static void goodix_ts_esd_work(struct work_struct *work)
 			ts_err("esd init watch dog FAILED, i2c write ERROR");
 	}
 
-	mutex_lock(&ts_esd->esd_mutex);
-	if (ts_esd->esd_on)
+	if (atomic_read(&ts_esd->esd_on))
 		schedule_delayed_work(&ts_esd->esd_work, GOODIX_ESD_CHECK_INTERVAL * HZ);
-	mutex_unlock(&ts_esd->esd_mutex);
 }
 
 /**
@@ -1523,15 +1521,10 @@ static void goodix_ts_esd_on(struct goodix_ts_core *core)
 	if (core->ts_dev->reg.esd == 0)
 		return;
 
-	mutex_lock(&ts_esd->esd_mutex);
-	if (ts_esd->esd_on == false) {
-		ts_esd->esd_on = true;
-		schedule_delayed_work(&ts_esd->esd_work, GOODIX_ESD_CHECK_INTERVAL * HZ);
-		mutex_unlock(&ts_esd->esd_mutex);
-		pr_debug("Esd on");
-		return;
-	}
-	mutex_unlock(&ts_esd->esd_mutex);
+	atomic_set(&ts_esd->esd_on, 1);
+	if (!schedule_delayed_work(&ts_esd->esd_work, GOODIX_ESD_CHECK_INTERVAL * HZ))
+		pr_debug("Esd work already in workqueue");
+	pr_debug("Esd on");
 }
 
 /**
@@ -1540,16 +1533,11 @@ static void goodix_ts_esd_on(struct goodix_ts_core *core)
 static void goodix_ts_esd_off(struct goodix_ts_core *core)
 {
 	struct goodix_ts_esd *ts_esd = &core->ts_esd;
+	int ret;
 
-	mutex_lock(&ts_esd->esd_mutex);
-	if (ts_esd->esd_on == true) {
-		ts_esd->esd_on = false;
-		cancel_delayed_work(&ts_esd->esd_work);
-		mutex_unlock(&ts_esd->esd_mutex);
-		pr_debug("Esd off");
-		return;
-	}
-	mutex_unlock(&ts_esd->esd_mutex);
+	atomic_set(&ts_esd->esd_on, 0);
+	ret = cancel_delayed_work(&ts_esd->esd_work);
+	pr_debug("Esd off, esd work state %d", ret);
 }
 
 /**
@@ -1594,9 +1582,8 @@ int goodix_ts_esd_init(struct goodix_ts_core *core)
 	int r;
 
 	INIT_DELAYED_WORK(&ts_esd->esd_work, goodix_ts_esd_work);
-	mutex_init(&ts_esd->esd_mutex);
 	ts_esd->ts_core = core;
-	ts_esd->esd_on = false;
+	atomic_set(&ts_esd->esd_on, 0);
 	ts_esd->esd_notifier.notifier_call = goodix_esd_notifier_callback;
 	goodix_ts_register_notifier(&ts_esd->esd_notifier);
 
