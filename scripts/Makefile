@@ -53,3 +53,8 @@ subdir-$(CONFIG_GDB_SCRIPTS) += gdb
 
 # Let clean descend into subdirs
 subdir-	+= basic kconfig package gcc-plugins
+
+DTC                           = scripts/dtc/dtc
+DTC_FLAGS      :=
+export DTC DTC_FLAGS
+
