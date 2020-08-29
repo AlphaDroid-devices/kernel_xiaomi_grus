@@ -34,7 +34,6 @@
 #endif
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
-#include <linux/wakelock.h>
 
 #include "goodix_ts_core.h"
 
@@ -932,7 +931,7 @@ static void goodix_ts_sleep_work(struct work_struct *work)
 		if (!r) {
 			lpm_disable_for_input(false);
 			pr_debug("pm_resume_completion timeout, i2c is closed");
-			wake_unlock(&core_data->tp_wakelock);
+			__pm_relax(&core_data->tp_wakelock);
 			return;
 		} else {
 			pr_debug("pm_resume_completion be completed, handling irq");
@@ -948,7 +947,7 @@ static void goodix_ts_sleep_work(struct work_struct *work)
 			pr_debug("irq exit");
 			mutex_unlock(&goodix_modules.mutex);
 			lpm_disable_for_input(false);
-			wake_unlock(&core_data->tp_wakelock);
+			__pm_relax(&core_data->tp_wakelock);
 			return;
 		}
 	}
@@ -964,7 +963,7 @@ static void goodix_ts_sleep_work(struct work_struct *work)
 		}
 	}
 	lpm_disable_for_input(false);
-	wake_unlock(&core_data->tp_wakelock);
+	__pm_relax(&core_data->tp_wakelock);
 	pr_debug("exit");
 }
 
@@ -989,7 +988,7 @@ static irqreturn_t goodix_ts_threadirq_func(int irq, void *data)
 
 	if (core_data->tp_already_suspend) {
 		pr_debug("device in suspend, schedue to work");
-		wake_lock_timeout(&core_data->tp_wakelock, msecs_to_jiffies(300));
+		__pm_wakeup_event(&core_data->tp_wakelock, 300);
 		queue_work(core_data->event_wq, &core_data->sleep_work);
 		return IRQ_HANDLED;
 	}
@@ -2374,7 +2373,7 @@ static int goodix_ts_probe(struct platform_device *pdev)
         }
 
 	core_data->fod_status = 0;
-	wake_lock_init(&core_data->tp_wakelock, WAKE_LOCK_SUSPEND, "touch_locker");
+	wakeup_source_init(&core_data->tp_wakelock, "touch_locker");
 #ifdef CONFIG_TOUCHSCREEN_GOODIX_DEBUG_FS
 	core_data->debugfs = debugfs_create_dir("tp_debug", NULL);
 	if (core_data->debugfs) {
@@ -2395,7 +2394,7 @@ static int goodix_ts_remove(struct platform_device *pdev)
 #ifdef CONFIG_DRM
 	msm_drm_unregister_client(&core_data->fb_notifier);
 #endif
-	wake_lock_destroy(&core_data->tp_wakelock);
+	wakeup_source_trash(&core_data->tp_wakelock);
 	power_supply_unreg_notifier(&core_data->power_supply_notifier);
 	goodix_ts_power_off(core_data);
 	goodix_debugfs_exit();
