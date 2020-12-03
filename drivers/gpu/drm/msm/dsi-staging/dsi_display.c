@@ -5422,6 +5422,7 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 
 	mutex_init(&display->display_lock);
 	display->pdev = pdev;
+	display->is_prim_display = true;
 	platform_set_drvdata(pdev, display);
 	mutex_lock(&dsi_display_list_lock);
 	list_add(&display->list, &dsi_display_list);
