@@ -206,6 +206,8 @@ struct irq_data {
  * IRQD_FORWARDED_TO_VCPU	- The interrupt is forwarded to a VCPU
  * IRQD_AFFINITY_MANAGED	- Affinity is auto-managed by the kernel
  * IRQD_SINGLE_TARGET		- IRQ allows only a single affinity target
+ * IRQD_DEFAULT_TRIGGER_SET	- Expected trigger already been set
+ * IRQD_PERF_CRITICAL		- IRQ is performance-critical
  */
 enum {
 	IRQD_TRIGGER_MASK		= 0xf,
@@ -224,6 +226,8 @@ enum {
 	IRQD_FORWARDED_TO_VCPU		= (1 << 20),
 	IRQD_AFFINITY_MANAGED		= (1 << 21),
 	IRQD_SINGLE_TARGET		= (1 << 24),
+	IRQD_DEFAULT_TRIGGER_SET	= (1 << 25),
+	IRQD_PERF_CRITICAL		= (1 << 26),
 };
 
 #define __irqd_to_state(d) ACCESS_PRIVATE((d)->common, state_use_accessors)

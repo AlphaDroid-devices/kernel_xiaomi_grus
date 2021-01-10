@@ -30,6 +30,9 @@ static bool migrate_one_irq(struct irq_desc *desc)
 	if (irqd_is_per_cpu(d) ||
 	    !cpumask_test_cpu(smp_processor_id(), affinity))
 		return false;
+	
+	if (irqd_has_set(d, IRQD_PERF_CRITICAL))
+		return false;
 
 	cpumask_copy(&available_cpus, affinity);
 	cpumask_andnot(&available_cpus, &available_cpus, cpu_isolated_mask);
@@ -107,10 +110,14 @@ void irq_migrate_all_off_this_cpu(void)
 		affinity_broken = migrate_one_irq(desc);
 		raw_spin_unlock(&desc->lock);
 
-		if (affinity_broken)
+		if (affinity_broken) {
 			pr_warn_ratelimited("IRQ%u no longer affine to CPU%u\n",
 					    irq, smp_processor_id());
+		}
 	}
+
+	if (!cpumask_test_cpu(smp_processor_id(), cpu_lp_mask))
+		reaffine_perf_irqs(true);
 
 	local_irq_restore(flags);
 }
