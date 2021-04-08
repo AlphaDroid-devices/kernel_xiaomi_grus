@@ -265,7 +265,7 @@
 		goodix,x2x;
 		goodix,y2y;
 		sensor1 {
-			normal-cfg = [ 
+			normal-cfg = [
 			];
 			goodix,fw-name = "goodix_gt9886_fw_f2.bin";
 			goodix,limit-name = "goodix_gt9886_limit_f2.tporder";
@@ -878,4 +878,36 @@
 					<1363200>,
 					<1843200>,
 					<2304000>;
+};
+
+&CPU0 {
+	clock-frequency = <1708800000>;
+};
+
+&CPU1 {
+	clock-frequency = <1708800000>;
+};
+
+&CPU2 {
+	clock-frequency = <1708800000>;
+};
+
+&CPU3 {
+	clock-frequency = <1708800000>;
+};
+
+&CPU4 {
+	clock-frequency = <1708800000>;
+};
+
+&CPU5 {
+	clock-frequency = <1708800000>;
+};
+
+&CPU6 {
+	clock-frequency = <2304000000>;
+};
+
+&CPU7 {
+	clock-frequency = <2304000000>;
 };
