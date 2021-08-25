@@ -4876,6 +4876,8 @@ typedef struct {
 	uint8_t apCountryStr[WNI_CFG_COUNTRY_CODE_LEN];
 	/* country string for this association */
 	uint8_t countryStr[WNI_CFG_COUNTRY_CODE_LEN];
+    /* time slice duty cycle */
+	uint8_t time_slice_duty_cycle;
 } tSirWifiInterfaceInfo, *tpSirWifiInterfaceInfo;
 
 /* channel information */

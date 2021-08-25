@@ -422,7 +422,10 @@ static bool put_wifi_interface_info(tpSirWifiInterfaceInfo stats,
 		    WNI_CFG_COUNTRY_CODE_LEN, stats->apCountryStr) ||
 	    nla_put(vendor_event,
 		    QCA_WLAN_VENDOR_ATTR_LL_STATS_IFACE_INFO_COUNTRY_STR,
-		    WNI_CFG_COUNTRY_CODE_LEN, stats->countryStr)) {
+		    WNI_CFG_COUNTRY_CODE_LEN, stats->countryStr) ||
+	    nla_put_u32(vendor_event,
+			QCA_WLAN_VENDOR_ATTR_LL_STATS_IFACE_INFO_TS_DUTY_CYCLE,
+			stats->time_slice_duty_cycle)) {
 		hdd_err("QCA_WLAN_VENDOR_ATTR put fail");
 		return false;
 	}
@@ -6540,4 +6543,3 @@ void wlan_hdd_register_cp_stats_cb(struct hdd_context *hdd_ctx)
 					hdd_lost_link_cp_stats_info_cb);
 }
 #endif
-
