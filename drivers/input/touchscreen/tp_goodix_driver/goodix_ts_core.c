@@ -54,6 +54,9 @@
 #define INPUT_EVENT_COVER_MODE_OFF		6
 #define INPUT_EVENT_COVER_MODE_ON		7
 #define INPUT_EVENT_SLIDE_FOR_VOLUME		8
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+#include <linux/input/tp_common.h>
+#endif
 #define INPUT_EVENT_DOUBLE_TAP_FOR_VOLUME		9
 #define INPUT_EVENT_SINGLE_TAP_FOR_VOLUME		10
 #define INPUT_EVENT_LONG_SINGLE_TAP_FOR_VOLUME		11
@@ -372,6 +375,30 @@ static void goodix_debugfs_exit(void)
 	goodix_dbg.dentry = NULL;
 	pr_info("Debugfs module exit\n");
 }
+
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+static ssize_t double_tap_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", goodix_core_data->double_wakeup);
+}
+
+static ssize_t double_tap_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int rc, val;
+
+	rc = kstrtoint(buf, 10, &val);
+	if (rc)
+	return -EINVAL;
+
+	goodix_core_data->double_wakeup = !!val;
+	return count;
+}
+
+static struct tp_common_ops double_tap_ops = {
+	.show = double_tap_show,
+	.store = double_tap_store
+};
+#endif
 
 /* show external module infomation */
 static ssize_t goodix_ts_extmod_show(struct device *dev,
@@ -2305,6 +2332,13 @@ static int goodix_ts_probe(struct platform_device *pdev)
 		ts_err("***start cfg_bin_proc FAILED");
 		goto out;
 	}
+
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+	r = tp_common_set_double_tap_ops(&double_tap_ops);
+	if (r < 0) {
+		ts_err("%s: Failed to create double_tap node err=%d\n", __func__, r);
+	}
+#endif
 
 	core_data->power_supply_notifier.notifier_call = gtp_power_supply_event;
 	power_supply_reg_notifier(&core_data->power_supply_notifier);
