@@ -26,11 +26,13 @@ static unsigned short kcal_red = 256;
 static unsigned short kcal_green = 256;
 static unsigned short kcal_blue = 256;
 #endif
+static unsigned short kcal_enable = 0;
 static unsigned short kcal_hue = 0;
 static unsigned short kcal_sat = 255;
 static unsigned short kcal_val = 255;
 static unsigned short kcal_cont = 255;
 
+module_param(kcal_enable, short, 0644);
 module_param(kcal_red, short, 0644);
 module_param(kcal_green, short, 0644);
 module_param(kcal_blue, short, 0644);
@@ -264,16 +266,21 @@ void sde_setup_dspp_pccv4(struct sde_hw_dspp *ctx, void *cfg)
 
 		SDE_REG_WRITE(&ctx->hw, base + PCC_C_OFF, coeffs->c);
 
-		// RED
-		SDE_REG_WRITE(&ctx->hw, base + PCC_R_OFF,
-			i == 0 ? (coeffs->r * kcal_red) / 256 : coeffs->r);
-		// GREEN
-		SDE_REG_WRITE(&ctx->hw, base + PCC_G_OFF,
-			i == 1 ? (coeffs->g * kcal_green) / 256 : coeffs->g);
-		// BLUE
-		SDE_REG_WRITE(&ctx->hw, base + PCC_B_OFF,
-			i == 2 ? (coeffs->b * kcal_blue) / 256 : coeffs->b);
-
+		if (kcal_enable) {
+			// RED
+			SDE_REG_WRITE(&ctx->hw, base + PCC_R_OFF,
+				i == 0 ? (coeffs->r * kcal_red) / 256 : coeffs->r);
+			// GREEN
+			SDE_REG_WRITE(&ctx->hw, base + PCC_G_OFF,
+				i == 1 ? (coeffs->g * kcal_green) / 256 : coeffs->g);
+			// BLUE
+			SDE_REG_WRITE(&ctx->hw, base + PCC_B_OFF,
+				i == 2 ? (coeffs->b * kcal_blue) / 256 : coeffs->b);
+		} else {
+			SDE_REG_WRITE(&ctx->hw, base + PCC_R_OFF, coeffs->r);
+			SDE_REG_WRITE(&ctx->hw, base + PCC_G_OFF, coeffs->g);
+			SDE_REG_WRITE(&ctx->hw, base + PCC_B_OFF, coeffs->b);
+		}
 		SDE_REG_WRITE(&ctx->hw, base + PCC_RG_OFF, coeffs->rg);
 		SDE_REG_WRITE(&ctx->hw, base + PCC_RB_OFF, coeffs->rb);
 		SDE_REG_WRITE(&ctx->hw, base + PCC_GB_OFF, coeffs->gb);
@@ -282,28 +289,29 @@ void sde_setup_dspp_pccv4(struct sde_hw_dspp *ctx, void *cfg)
 
 	opcode = SDE_REG_READ(&ctx->hw, ctx->cap->sblk->hsic.base);
 
-	// HUE
-	SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base + PA_HUE_OFF,
-		kcal_hue & PA_HUE_MASK);
-	local_opcode |= PA_HUE_EN;
+	if (kcal_enable) {
+		// HUE
+		SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base + PA_HUE_OFF,
+			kcal_hue & PA_HUE_MASK);
+		local_opcode |= PA_HUE_EN;
 
-	// SATURATION
-	SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base + PA_SAT_OFF,
-		kcal_sat & PA_SAT_MASK);
-	local_opcode |= PA_SAT_EN;
+		// SATURATION
+		SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base + PA_SAT_OFF,
+			kcal_sat & PA_SAT_MASK);
+		local_opcode |= PA_SAT_EN;
 
-	// VALUE
-	SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base + PA_VAL_OFF,
-		kcal_val & PA_VAL_MASK);
-	local_opcode |= PA_VAL_EN;
+		// VALUE
+		SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base + PA_VAL_OFF,
+			kcal_val & PA_VAL_MASK);
+		local_opcode |= PA_VAL_EN;
 
-	// CONTRAST
-	SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base + PA_CONT_OFF,
-		kcal_cont & PA_CONT_MASK);
-	local_opcode |= PA_CONT_EN;
+		// CONTRAST
+		SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base + PA_CONT_OFF,
+			kcal_cont & PA_CONT_MASK);
+		local_opcode |= PA_CONT_EN;
 
-	opcode |= (local_opcode | PA_EN);
-	SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base, opcode);
-
+		opcode |= (local_opcode | PA_EN);
+		SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->hsic.base, opcode);
+	}
 	SDE_REG_WRITE(&ctx->hw, ctx->cap->sblk->pcc.base, PCC_EN);
 }
