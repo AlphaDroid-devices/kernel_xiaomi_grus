@@ -35,7 +35,7 @@ echo "=========================Build========================="
 export ARCH=arm64
 export SUBARCH=arm64
 make O=out kowalski_custom_defconfig
-make -j4 O=out CC=$CLANG_PATH/bin/clang CROSS_COMPILE=$CLANG_PATH/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32=$CLANG_PATH/bin/arm-linux-gnueabi-
+make -j4 O=out CC=$CLANG_PATH/bin/clang CROSS_COMPILE=$CLANG_PATH/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32=$CLANG_PATH/bin/arm-linux-gnueabi- | tee out/log.txt
 
 echo "=========================Patch========================="
 rm -r $ANYKERNEL_PATH/modules $ANYKERNEL_PATH/patch $ANYKERNEL_PATH/ramdisk
