@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -48,6 +48,9 @@ static const struct drm_prop_enum_list e_topology_name[] = {
 	{SDE_RM_TOPOLOGY_DUALPIPE_3DMERGE_DSC,	"sde_dualpipemerge_dsc"},
 	{SDE_RM_TOPOLOGY_DUALPIPE_DSCMERGE,	"sde_dualpipe_dscmerge"},
 	{SDE_RM_TOPOLOGY_PPSPLIT,	"sde_ppsplit"},
+	{SDE_RM_TOPOLOGY_QUADPIPE_3DMERGE,	"sde_quadpipemerge"},
+	{SDE_RM_TOPOLOGY_QUADPIPE_DSCMERGE,	"sde_quadpipe_dscmerge"},
+	{SDE_RM_TOPOLOGY_QUADPIPE_3DMERGE_DSC,	"sde_quadpipe_3dmerge_dsc"}
 };
 static const struct drm_prop_enum_list e_topology_control[] = {
 	{SDE_RM_TOPCTL_RESERVE_LOCK,	"reserve_lock"},
@@ -691,13 +694,12 @@ void sde_connector_helper_bridge_enable(struct drm_connector *connector)
 				MSM_ENC_TX_COMPLETE);
 	c_conn->allow_bl_update = true;
 
-	if (!display->is_first_boot && c_conn->bl_device) {
+	if (c_conn->bl_device) {
 		c_conn->bl_device->props.power = FB_BLANK_UNBLANK;
 		c_conn->bl_device->props.state &= ~BL_CORE_FBBLANK;
 		backlight_update_status(c_conn->bl_device);
 	}
 	c_conn->panel_dead = false;
-	display->is_first_boot = false;
 }
 
 int sde_connector_clk_ctrl(struct drm_connector *connector, bool enable)
@@ -720,6 +722,72 @@ int sde_connector_clk_ctrl(struct drm_connector *connector, bool enable)
 				DSI_ALL_CLKS, state);
 
 	return rc;
+}
+
+enum sde_csc_type sde_connector_get_csc_type(struct drm_connector *conn)
+{
+	struct sde_connector *c_conn;
+
+	if (!conn) {
+		SDE_ERROR("invalid argument\n");
+		return -EINVAL;
+	}
+
+	c_conn = to_sde_connector(conn);
+
+	if (!c_conn->display) {
+		SDE_ERROR("invalid argument\n");
+		return -EINVAL;
+	}
+
+	if (!c_conn->ops.get_csc_type)
+		return SDE_CSC_RGB2YUV_601L;
+
+	return c_conn->ops.get_csc_type(conn, c_conn->display);
+}
+
+bool sde_connector_mode_needs_full_range(struct drm_connector *connector)
+{
+	struct sde_connector *c_conn;
+
+	if (!connector) {
+		SDE_ERROR("invalid argument\n");
+		return false;
+	}
+
+	c_conn = to_sde_connector(connector);
+
+	if (!c_conn->display) {
+		SDE_ERROR("invalid argument\n");
+		return false;
+	}
+
+	if (!c_conn->ops.mode_needs_full_range)
+		return false;
+
+	return c_conn->ops.mode_needs_full_range(c_conn->display);
+}
+
+bool sde_connector_mode_is_cea_mode(struct drm_connector *connector)
+{
+	struct sde_connector *c_conn;
+
+	if (!connector) {
+		SDE_ERROR("invalid argument\n");
+		return false;
+	}
+
+	c_conn = to_sde_connector(connector);
+
+	if (!c_conn->display) {
+		SDE_ERROR("invalid argument\n");
+		return false;
+	}
+
+	if (!c_conn->ops.mode_is_cea_mode)
+		return false;
+
+	return c_conn->ops.mode_is_cea_mode(c_conn->display);
 }
 
 static void sde_connector_destroy(struct drm_connector *connector)
@@ -1113,10 +1181,6 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 	/* connector-specific property handling */
 	idx = msm_property_index(&c_conn->property_info, property);
 	switch (idx) {
-	case CONNECTOR_PROP_LP:
-		if (connector->dev)
-			connector->dev->state = val;
-		break;
 	case CONNECTOR_PROP_OUT_FB:
 		/* clear old fb, if present */
 		if (c_state->out_fb)
@@ -1957,6 +2021,9 @@ static int sde_connector_populate_mode_info(struct drm_connector *conn,
 
 		sde_kms_info_add_keystr(info, "mode_name", mode->name);
 
+		sde_kms_info_add_keyint(info, "VIC",
+					mode->vic_id);
+
 		sde_kms_info_add_keyint(info, "bit_clk_rate",
 					mode_info.clk_rate);
 
@@ -2072,36 +2139,6 @@ exit:
 	kfree(info);
 
 	return rc;
-}
-
-static irqreturn_t esd_err_irq_handle(int irq, void *data)
-{
-	struct sde_connector *c_conn = data;
-	struct drm_event event;
-	struct dsi_display *dsi_display;
-	bool panel_dead = false;
-
-	if (!c_conn && !c_conn->display) {
-		SDE_ERROR("not able to get connector object\n");
-		return IRQ_HANDLED;
-	}
-
-	dsi_display = (struct dsi_display *)(c_conn->display);
-	if (!dsi_display->panel->panel_initialized) {
-		pr_debug("%s: Panel is not initialized, skip it!\n", __func__);
-		return IRQ_HANDLED;
-	}
-
-	SDE_ERROR("esd check irq report PANEL_DEAD conn_id: %d enc_id: %d\n",
-		c_conn->base.base.id, c_conn->encoder->base.id);
-
-	panel_dead = true;
-	event.type = DRM_EVENT_PANEL_DEAD;
-	event.length = sizeof(bool);
-	msm_mode_object_event_notify(&c_conn->base.base,
-		c_conn->base.dev, &event, (u8 *)&panel_dead);
-	sde_encoder_display_failure_notification(c_conn->encoder);
-	return IRQ_HANDLED;
 }
 
 struct drm_connector *sde_connector_init(struct drm_device *dev,
@@ -2251,22 +2288,6 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 				&dsi_display->panel->hdr_props,
 				sizeof(dsi_display->panel->hdr_props),
 				CONNECTOR_PROP_HDR_INFO);
-		}
-
-		/* register esd irq and enable it after panel enabled */
-		if (dsi_display && dsi_display->panel &&
-			dsi_display->panel->esd_config.esd_err_irq > 0 &&
-			dsi_display->panel->esd_config.esd_interrupt_flags >= 0) {
-			rc = request_threaded_irq(dsi_display->panel->esd_config.esd_err_irq,
-							NULL, esd_err_irq_handle,
-							dsi_display->panel->esd_config.esd_interrupt_flags,
-							"esd_err_irq", c_conn);
-			if (rc < 0) {
-				pr_err("%s: request irq %d failed\n", __func__, dsi_display->panel->esd_config.esd_err_irq);
-				dsi_display->panel->esd_config.esd_err_irq = 0;
-			} else {
-				pr_debug("%s: Request esd irq %d succeed!\n", __func__, dsi_display->panel->esd_config.esd_err_irq);
-			}
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,54 +16,14 @@
 #define pr_fmt(fmt)	"dsi-drm:[%s] " fmt, __func__
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_atomic.h>
-#include <drm/drm_notifier.h>
-#include <linux/notifier.h>
-#include <drm/drm_bridge.h>
-#include <linux/pm_wakeup.h>
 
 #include "msm_kms.h"
 #include "sde_connector.h"
 #include "dsi_drm.h"
 #include "sde_trace.h"
 
-static BLOCKING_NOTIFIER_HEAD(drm_notifier_list);
-
 #define to_dsi_bridge(x)     container_of((x), struct dsi_bridge, base)
 #define to_dsi_state(x)      container_of((x), struct dsi_connector_state, base)
-
-struct dsi_bridge *gbridge;
-
-struct drm_notify_data g_notify_data;
-
-/**
- *	drm_register_client - register a client notifier
- *	@nb: notifier block to callback on events
- */
-int drm_register_client(struct notifier_block *nb)
-{
-	return blocking_notifier_chain_register(&drm_notifier_list, nb);
-}
-EXPORT_SYMBOL(drm_register_client);
-
-/**
- *	drm_unregister_client - unregister a client notifier
- *	@nb: notifier block to callback on events
- */
-int drm_unregister_client(struct notifier_block *nb)
-{
-	return blocking_notifier_chain_unregister(&drm_notifier_list, nb);
-}
-EXPORT_SYMBOL(drm_unregister_client);
-
-/**
- * drm_notifier_call_chain - notify clients of drm_events
- *
- */
-int drm_notifier_call_chain(unsigned long val, void *v)
-{
-	return blocking_notifier_call_chain(&drm_notifier_list, val, v);
-}
-EXPORT_SYMBOL_GPL(drm_notifier_call_chain);
 
 static void convert_to_dsi_mode(const struct drm_display_mode *drm_mode,
 				struct dsi_display_mode *dsi_mode)
@@ -180,18 +140,6 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
-	struct drm_device *dev = bridge->dev;
-
-	int event = 0;
-
-	if (dev->state == DRM_BLANK_POWERDOWN) {
-		dev->state = DRM_BLANK_UNBLANK;
-		pr_debug("%s power on from power off\n", __func__);
-	}
-
-	event = dev->state;
-
-	g_notify_data.data = &event;
 
 	if (!bridge) {
 		pr_err("Invalid params\n");
@@ -204,8 +152,6 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 	}
 
 	atomic_set(&c_bridge->display->panel->esd_recovery_pending, 0);
-
-	drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
 
 	/* By this point mode should have been validated through mode_fixup */
 	rc = dsi_display_set_mode(c_bridge->display,
@@ -239,9 +185,6 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 				c_bridge->id, rc);
 		(void)dsi_display_unprepare(c_bridge->display);
 	}
-
-	drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
-
 	SDE_ATRACE_END("dsi_display_enable");
 	SDE_ATRACE_END("dsi_bridge_pre_enable");
 
@@ -303,7 +246,8 @@ static void dsi_bridge_enable(struct drm_bridge *bridge)
 	}
 
 	if (c_bridge->dsi_mode.dsi_mode_flags &
-			(DSI_MODE_FLAG_SEAMLESS | DSI_MODE_FLAG_VRR)) {
+			(DSI_MODE_FLAG_SEAMLESS | DSI_MODE_FLAG_VRR |
+			 DSI_MODE_FLAG_DYN_CLK)) {
 		pr_debug("[%d] seamless enable\n", c_bridge->id);
 		return;
 	}
@@ -344,32 +288,11 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
-	struct drm_device *dev = bridge->dev;
-	int event = 0;
-
-	if (dev->state == DRM_BLANK_UNBLANK) {
-		dev->state = DRM_BLANK_POWERDOWN;
-		pr_debug("%s wrong doze state\n", __func__);
-	}
-
-	event = dev->state;
-
-	g_notify_data.data = &event;
 
 	if (!bridge) {
 		pr_err("Invalid params\n");
 		return;
 	}
-
-	if (dev->state == DRM_BLANK_LP1 || dev->state == DRM_BLANK_LP2) {
-		pr_err("%s doze state can't power off panel\n", __func__);
-		event = DRM_BLANK_POWERDOWN;
-		drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
-		drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
-		return;
-	}
-
-	drm_notifier_call_chain(DRM_EARLY_EVENT_BLANK, &g_notify_data);
 
 	SDE_ATRACE_BEGIN("dsi_bridge_post_disable");
 	SDE_ATRACE_BEGIN("dsi_display_disable");
@@ -390,8 +313,6 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 		return;
 	}
 	SDE_ATRACE_END("dsi_bridge_post_disable");
-
-	drm_notifier_call_chain(DRM_EVENT_BLANK, &g_notify_data);
 }
 
 static void dsi_bridge_mode_set(struct drm_bridge *bridge,
@@ -787,13 +708,111 @@ void dsi_connector_put_modes(struct drm_connector *connector,
 	dsi_display->modes = NULL;
 }
 
-int dsi_connector_get_modes(struct drm_connector *connector,
-		void *display)
+
+static int dsi_drm_update_edid_name(struct edid *edid, const char *name)
 {
-	u32 count = 0;
+	u8 *dtd = (u8 *)&edid->detailed_timings[3];
+	u8 standard_header[] = {0x00, 0x00, 0x00, 0xFE, 0x00};
+	u32 dtd_size = 18;
+	u32 header_size = sizeof(standard_header);
+
+	if (!name)
+		return -EINVAL;
+
+	/* Fill standard header */
+	memcpy(dtd, standard_header, header_size);
+
+	dtd_size -= header_size;
+	dtd_size = min_t(u32, dtd_size, strlen(name));
+
+	memcpy(dtd + header_size, name, dtd_size);
+
+	return 0;
+}
+
+static void dsi_drm_update_dtd(struct edid *edid,
+		struct dsi_display_mode *modes, u32 modes_count)
+{
+	u32 i;
+	u32 count = min_t(u32, modes_count, 3);
+
+	for (i = 0; i < count; i++) {
+		struct detailed_timing *dtd = &edid->detailed_timings[i];
+		struct dsi_display_mode *mode = &modes[i];
+		struct dsi_mode_info *timing = &mode->timing;
+		struct detailed_pixel_timing *pd = &dtd->data.pixel_data;
+		u32 h_blank = timing->h_front_porch + timing->h_sync_width +
+				timing->h_back_porch;
+		u32 v_blank = timing->v_front_porch + timing->v_sync_width +
+				timing->v_back_porch;
+		u32 h_img = 0, v_img = 0;
+
+		dtd->pixel_clock = mode->pixel_clk_khz / 10;
+
+		pd->hactive_lo = timing->h_active & 0xFF;
+		pd->hblank_lo = h_blank & 0xFF;
+		pd->hactive_hblank_hi = ((h_blank >> 8) & 0xF) |
+				((timing->h_active >> 8) & 0xF) << 4;
+
+		pd->vactive_lo = timing->v_active & 0xFF;
+		pd->vblank_lo = v_blank & 0xFF;
+		pd->vactive_vblank_hi = ((v_blank >> 8) & 0xF) |
+				((timing->v_active >> 8) & 0xF) << 4;
+
+		pd->hsync_offset_lo = timing->h_front_porch & 0xFF;
+		pd->hsync_pulse_width_lo = timing->h_sync_width & 0xFF;
+		pd->vsync_offset_pulse_width_lo =
+			((timing->v_front_porch & 0xF) << 4) |
+			(timing->v_sync_width & 0xF);
+
+		pd->hsync_vsync_offset_pulse_width_hi =
+			(((timing->h_front_porch >> 8) & 0x3) << 6) |
+			(((timing->h_sync_width >> 8) & 0x3) << 4) |
+			(((timing->v_front_porch >> 4) & 0x3) << 2) |
+			(((timing->v_sync_width >> 4) & 0x3) << 0);
+
+		pd->width_mm_lo = h_img & 0xFF;
+		pd->height_mm_lo = v_img & 0xFF;
+		pd->width_height_mm_hi = (((h_img >> 8) & 0xF) << 4) |
+			((v_img >> 8) & 0xF);
+
+		pd->hborder = 0;
+		pd->vborder = 0;
+		pd->misc = 0;
+	}
+}
+
+static void dsi_drm_update_checksum(struct edid *edid)
+{
+	u8 *data = (u8 *)edid;
+	u32 i, sum = 0;
+
+	for (i = 0; i < EDID_LENGTH - 1; i++)
+		sum += data[i];
+
+	edid->checksum = 0x100 - (sum & 0xFF);
+}
+
+int dsi_connector_get_modes(struct drm_connector *connector, void *data)
+{
+	int rc, i;
+	u32 count = 0, edid_size;
 	struct dsi_display_mode *modes = NULL;
 	struct drm_display_mode drm_mode;
-	int rc, i;
+	struct dsi_display *display = data;
+	struct edid edid;
+	const u8 edid_buf[EDID_LENGTH] = {
+		0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x44, 0x6D,
+		0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1B, 0x10, 0x01, 0x03,
+		0x80, 0x50, 0x2D, 0x78, 0x0A, 0x0D, 0xC9, 0xA0, 0x57, 0x47,
+		0x98, 0x27, 0x12, 0x48, 0x4C, 0x00, 0x00, 0x00, 0x01, 0x01,
+		0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+		0x01, 0x01, 0x01, 0x01,
+	};
+
+	edid_size = min_t(u32, sizeof(edid), EDID_LENGTH);
+
+	memcpy(&edid, edid_buf, edid_size);
 
 	if (sde_connector_get_panel(connector)) {
 		/*
@@ -836,6 +855,18 @@ int dsi_connector_get_modes(struct drm_connector *connector,
 			m->type |= DRM_MODE_TYPE_PREFERRED;
 		drm_mode_probed_add(connector, m);
 	}
+
+	rc = dsi_drm_update_edid_name(&edid, display->panel->name);
+	if (rc) {
+		count = 0;
+		goto end;
+	}
+
+	dsi_drm_update_dtd(&edid, modes, count);
+	dsi_drm_update_checksum(&edid);
+	rc = drm_mode_connector_update_edid_property(connector, &edid);
+	if (rc)
+		count = 0;
 end:
 	pr_debug("MODE COUNT =%d\n\n", count);
 	return count;
@@ -970,7 +1001,6 @@ struct dsi_bridge *dsi_drm_bridge_init(struct dsi_display *display,
 	}
 
 	encoder->bridge = &bridge->base;
-
 	return bridge;
 error_free_bridge:
 	kfree(bridge);

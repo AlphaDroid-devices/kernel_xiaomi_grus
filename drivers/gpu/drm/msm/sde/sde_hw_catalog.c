@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,7 +15,6 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/soc/qcom/llcc-qcom.h>
-#include <linux/pm_qos.h>
 
 #include "sde_hw_mdss.h"
 #include "sde_hw_catalog.h"
@@ -128,8 +127,6 @@
 		"NV12/5/1/1.25 AB24/5/1/1.25 XB24/5/1/1.25"
 #define DEFAULT_MAX_PER_PIPE_BW			2400000
 #define DEFAULT_AMORTIZABLE_THRESHOLD		25
-#define DEFAULT_CPU_MASK			0
-#define DEFAULT_CPU_DMA_LATENCY			PM_QOS_DEFAULT_VALUE
 
 /*************************************************************
  *  DTSI PROPERTY INDEX
@@ -192,8 +189,6 @@ enum {
 	PERF_QOS_LUT_NRT,
 	PERF_QOS_LUT_CWB,
 	PERF_CDP_SETTING,
-	PERF_CPU_MASK,
-	PERF_CPU_DMA_LATENCY,
 	PERF_PROP_MAX,
 };
 
@@ -469,9 +464,6 @@ static struct sde_prop_type sde_perf_prop[] = {
 
 	{PERF_CDP_SETTING, "qcom,sde-cdp-setting", false,
 			PROP_TYPE_U32_ARRAY},
-	{PERF_CPU_MASK, "qcom,sde-qos-cpu-mask", false, PROP_TYPE_U32},
-	{PERF_CPU_DMA_LATENCY, "qcom,sde-qos-cpu-dma-latency", false,
-			PROP_TYPE_U32},
 };
 
 static struct sde_prop_type sspp_prop[] = {
@@ -523,7 +515,7 @@ struct sde_prop_type mixer_blend_prop[] = {
 static struct sde_prop_type mixer_prop[] = {
 	{MIXER_OFF, "qcom,sde-mixer-off", true, PROP_TYPE_U32_ARRAY},
 	{MIXER_LEN, "qcom,sde-mixer-size", false, PROP_TYPE_U32},
-	{MIXER_PAIR_MASK, "qcom,sde-mixer-pair-mask", true,
+	{MIXER_PAIR_MASK, "qcom,sde-mixer-pair-mask", false,
 		PROP_TYPE_U32_ARRAY},
 	{MIXER_BLOCKS, "qcom,sde-mixer-blocks", false, PROP_TYPE_NODE},
 	{MIXER_DISP, "qcom,sde-mixer-display-pref", false,
@@ -1460,7 +1452,7 @@ static int sde_mixer_parse_dt(struct device_node *np,
 			goto end;
 		}
 		mixer->sblk = sblk;
-
+		mixer->lm_pair_mask = 0xFFFFFFFF;
 		mixer->base = mixer_base;
 		mixer->len = PROP_VALUE_ACCESS(prop_value, MIXER_LEN, 0);
 		mixer->id = LM_0 + i;
@@ -2348,7 +2340,7 @@ static int sde_cdm_parse_dt(struct device_node *np,
 
 		/* intf3 and wb2 for cdm block */
 		cdm->wb_connect = sde_cfg->wb_count ? BIT(WB_2) : BIT(31);
-		cdm->intf_connect = sde_cfg->intf_count ? BIT(INTF_3) : BIT(31);
+		cdm->intf_connect = sde_cfg->intf_count ? BIT(INTF_0) : BIT(31);
 	}
 
 end:
@@ -3120,15 +3112,6 @@ static int sde_perf_parse_dt(struct device_node *np, struct sde_mdss_cfg *cfg)
 
 		cfg->has_cdp = true;
 	}
-
-	cfg->perf.cpu_mask =
-			prop_exists[PERF_CPU_MASK] ?
-			PROP_VALUE_ACCESS(prop_value, PERF_CPU_MASK, 0) :
-			DEFAULT_CPU_MASK;
-	cfg->perf.cpu_dma_latency =
-			prop_exists[PERF_CPU_DMA_LATENCY] ?
-			PROP_VALUE_ACCESS(prop_value, PERF_CPU_DMA_LATENCY, 0) :
-			DEFAULT_CPU_DMA_LATENCY;
 
 freeprop:
 	kfree(prop_value);
