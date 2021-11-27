@@ -1,6 +1,6 @@
 DATE=$(date +"%Y%m%d")
 VERSION=$(git rev-parse --short HEAD)
-KERNEL_NAME=kow@alski-custom-"$DATE"
+KERNEL_NAME=pkernel-"$DATE"
 
 KERNEL_PATH=$PWD
 CLANG_PATH=~/kernel/clang/clang-proton
