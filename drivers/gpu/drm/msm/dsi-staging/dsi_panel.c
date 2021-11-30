@@ -24,6 +24,10 @@
 #include "dsi_display.h"
 #include "dsi_ctrl_hw.h"
 
+#ifdef CONFIG_KLAPSE
+#include <linux/klapse.h>
+#endif
+
 #include "../../../../../kernel/irq/internals.h"
 
 /**
@@ -1022,6 +1026,9 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		break;
 	case DSI_BACKLIGHT_DCS:
 		rc = dsi_panel_update_backlight(panel, bl_lvl);
+#ifdef CONFIG_KLAPSE
+		set_rgb_slider(bl_lvl);
+#endif
 		break;
 	default:
 		pr_err("Backlight type(%d) not supported\n", bl->type);
