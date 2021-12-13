@@ -4,7 +4,7 @@
 ## AnyKernel setup
 # begin properties
 properties() { '
-kernel.string=kow@lski-custom kernel for Xiaomi Mi 9 SE (Grus)
+kernel.string=pkernel for Xiaomi Mi 9 SE (Grus), based on kowalski kernel, by pivcer
 do.devicecheck=1
 do.modules=0
 do.systemless=1
