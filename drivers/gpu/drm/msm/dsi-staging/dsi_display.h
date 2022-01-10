@@ -173,11 +173,11 @@ struct dsi_display {
 	struct drm_connector *drm_conn;
 
 	const char *name;
-	bool is_prim_display;
 	const char *display_type;
 	struct list_head list;
 	bool is_active;
 	bool is_cont_splash_enabled;
+	bool is_prim_display;
 	struct mutex display_lock;
 	int disp_te_gpio;
 	bool is_te_irq_enabled;
