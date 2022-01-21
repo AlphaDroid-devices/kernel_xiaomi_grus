@@ -252,7 +252,7 @@
 		goodix,panel-max-w = <127>;
 		goodix,panel-max-p = <127>;
 		goodix,panel-max-fod = <127>;
-		goodix,power-on-delay-us = <20000>; /*20ms*/
+		goodix,power-on-delay-us = <300000>; /*300ms*/
 		goodix,power-off-delay-us = <5000>;
 		goodix,cfg-name = "goodix_gt9886_cfg_f2.bin";
 		goodix,x2x;
