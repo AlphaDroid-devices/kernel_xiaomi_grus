@@ -991,7 +991,7 @@ int dsi_panel_set_doze_mode(struct dsi_panel *panel, enum dsi_doze_mode_type mod
 int dsi_panel_set_fod_hbm(struct dsi_panel *panel, bool status)
 {
 	int rc = 0;
-#if 0
+
 	if (panel->hbm_mode)
 		return rc;
 
@@ -1008,7 +1008,6 @@ int dsi_panel_set_fod_hbm(struct dsi_panel *panel, bool status)
 			pr_err("[%s] failed to send DSI_CMD_SET_DISP_HBM_FOD_OFF cmd, rc=%d\n",
 			       panel->name, rc);
 	}
-#endif
 	return rc;
 }
 
