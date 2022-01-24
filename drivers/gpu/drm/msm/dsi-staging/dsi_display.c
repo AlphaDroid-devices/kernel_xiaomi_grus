@@ -4814,18 +4814,18 @@ error:
 	return ret == 0 ? count : ret;
 }
 
-bool is_fod_dimlayer_enabled;
-static ssize_t sysfs_fod_dimlayer_read(struct device *dev,
+bool is_dimlayer_hbm_enabled;
+static ssize_t sysfs_dimlayer_hbm_read(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct dsi_display *display = dev_get_drvdata(dev);
 
 	if (!display->panel)
 		return 0;
-	return snprintf(buf, PAGE_SIZE, "%d\n", is_fod_dimlayer_enabled);
+	return snprintf(buf, PAGE_SIZE, "%d\n", is_dimlayer_hbm_enabled);
 }
 
-static ssize_t sysfs_fod_dimlayer_write(struct device *dev,
+static ssize_t sysfs_dimlayer_hbm_write(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	int ret = 0;
@@ -4835,32 +4835,7 @@ static ssize_t sysfs_fod_dimlayer_write(struct device *dev,
 		return ret;
 
 	sscanf(buf, "%d", &ret);
-	is_fod_dimlayer_enabled = ret > 0;
-	return count;
-}
-
-bool is_fod_hbm_enabled;
-static ssize_t sysfs_fod_hbm_read(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct dsi_display *display = dev_get_drvdata(dev);
-
-	if (!display->panel)
-		return 0;
-	return snprintf(buf, PAGE_SIZE, "%d\n", is_fod_hbm_enabled);
-}
-
-static ssize_t sysfs_fod_hbm_write(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	int ret = 0;
-	struct dsi_display *display = dev_get_drvdata(dev);
-
-	if (!display->panel)
-		return ret;
-
-	sscanf(buf, "%d", &ret);
-	is_fod_hbm_enabled = ret > 0;
+	is_dimlayer_hbm_enabled = ret > 0;
 	return count;
 }
 
@@ -4980,21 +4955,16 @@ static DEVICE_ATTR(hbm, 0644,
 			sysfs_hbm_read,
 			sysfs_hbm_write);
 
-static DEVICE_ATTR(fod_dimlayer, 0664,
-			sysfs_fod_dimlayer_read,
-			sysfs_fod_dimlayer_write);
-			
-static DEVICE_ATTR(fod_hbm, 0664,
-			sysfs_fod_hbm_read,
-			sysfs_fod_hbm_write);
+static DEVICE_ATTR(dimlayer_hbm, 0664,
+			sysfs_dimlayer_hbm_read,
+			sysfs_dimlayer_hbm_write);
 
 static struct attribute *display_fs_attrs[] = {
 	&dev_attr_doze_status.attr,
 	&dev_attr_doze_mode.attr,
 	&dev_attr_fod_ui.attr,
 	&dev_attr_hbm.attr,
-	&dev_attr_fod_dimlayer.attr,
-	&dev_attr_fod_hbm.attr,
+	&dev_attr_dimlayer_hbm.attr,
 	NULL,
 };
 static struct attribute_group display_fs_attrs_group = {

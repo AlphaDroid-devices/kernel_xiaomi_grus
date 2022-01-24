@@ -4799,7 +4799,7 @@ static int _sde_crtc_check_secure_state(struct drm_crtc *crtc,
 	return 0;
 }
 
-extern bool is_fod_dimlayer_enabled;
+extern bool is_dimlayer_hbm_enabled;
 static struct sde_hw_dim_layer* sde_crtc_setup_fod_dim_layer(
 		struct sde_crtc_state *cstate,
 		uint32_t stage)
@@ -4864,7 +4864,7 @@ static void sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 			fod_layer_index = plane_idx;
 	}
 
-	if (is_fod_dimlayer_enabled) {
+	if (is_dimlayer_hbm_enabled) {
 		if (fod_layer_index >= 0) {
 			if (zpos > pstates[fod_layer_index].stage)
 				zpos = pstates[fod_layer_index].stage;
