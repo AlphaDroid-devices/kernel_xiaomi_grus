@@ -869,6 +869,11 @@ static int goodix_ts_input_report(struct input_dev *dev,
 			/*input_report_abs(dev, ABS_MT_PRESSURE, coords->p);*/
 			/*input_report_abs(dev, ABS_MT_TOUCH_MINOR, coords->area);*/
 
+			if (goodix_ts_finger_in_fod(coords->x, coords->y)) {
+				core_data->fod_x = coords->x;
+				core_data->fod_y = coords->y;
+			}
+
 			if ((core_data->event_status & 0x88) != 0x88 || !core_data->fod_status)
 				coords->overlapping_area = 0;
 
@@ -895,6 +900,7 @@ static int goodix_ts_input_report(struct input_dev *dev,
 		input_report_key(core_data->input_dev, BTN_INFO, 1);
 		input_report_key(core_data->input_dev, KEY_INFO, 1);
 		core_data->fod_pressed = true;
+		sysfs_notify(&core_data->gtp_touch_dev->kobj, NULL, "fp_state");
 		pr_debug("BTN_INFO press");
 	} else if (core_data->fod_pressed && (core_data->event_status & 0x08) != 0x08) {
 		if (unlikely(!core_data->fod_test)) {
@@ -902,6 +908,9 @@ static int goodix_ts_input_report(struct input_dev *dev,
 			input_report_key(core_data->input_dev, KEY_INFO, 0);
 			pr_debug("BTN_INFO release");
 			core_data->fod_pressed = false;
+			core_data->fod_x = 0;
+			core_data->fod_y = 0;
+			sysfs_notify(&core_data->gtp_touch_dev->kobj, NULL, "fp_state");
 		}
 	}
 	mutex_unlock(&ts_dev->report_mutex);
@@ -1299,6 +1308,16 @@ static int goodix_ts_gpio_setup(struct goodix_ts_core *core_data)
 
 	return 0;
 }
+
+static ssize_t fp_state_show(struct device *dev,
+			     struct device_attribute *attr,
+			     char *buf)
+{
+	return sprintf(buf, "%d,%d,%d\n", goodix_core_data->fod_x, goodix_core_data->fod_y,
+			goodix_core_data->fod_x || goodix_core_data->fod_y);
+}
+
+static DEVICE_ATTR(fp_state, (S_IRUGO), fp_state_show,  NULL);
 
 static void goodix_switch_mode_work(struct work_struct *work)
 {
@@ -2371,6 +2390,12 @@ static int goodix_ts_probe(struct platform_device *pdev)
                 ts_err("Failed to create fod_status sysfs group!");
                 goto out;
         }
+
+	if (sysfs_create_file(&core_data->gtp_touch_dev->kobj,
+			      &dev_attr_fp_state.attr)) {
+		ts_err("Failed to create fp_state sysfs group!\n");
+		goto out;
+	}
 
 	core_data->fod_status = 0;
 	wakeup_source_init(&core_data->tp_wakelock, "touch_locker");
