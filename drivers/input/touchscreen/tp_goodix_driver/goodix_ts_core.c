@@ -1880,9 +1880,12 @@ int goodix_ts_fb_notifier_callback(struct notifier_block *self,
 			blank == MSM_DRM_BLANK_LP1 || blank == MSM_DRM_BLANK_LP2)) {
 			if (atomic_read(&core_data->suspend_stat))
 				return 0;
-			pr_debug("suspend by %s", blank == MSM_DRM_BLANK_POWERDOWN ? "blank" :
-			"doze");
-			core_data->aod_status = 1;
+			if (blank == MSM_DRM_BLANK_POWERDOWN)
+				pr_debug("suspend by %s", "blank");
+			else {
+				core_data->aod_status = 1;
+				pr_debug("suspend by %s", "doze");
+			}
 			queue_work(core_data->event_wq, &core_data->suspend_work);
 		} else if (event == MSM_DRM_EVENT_BLANK && blank == MSM_DRM_BLANK_UNBLANK) {
 			if (!atomic_read(&core_data->suspend_stat))
