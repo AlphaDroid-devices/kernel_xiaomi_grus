@@ -483,6 +483,7 @@ struct goodix_ts_core {
 	int is_usb_exist;
 	int gesture_enabled;
 	int fod_status;
+	int scr_off_fod;
 	int aod_status;
 	int fod_pressed;
 	int fod_test;
