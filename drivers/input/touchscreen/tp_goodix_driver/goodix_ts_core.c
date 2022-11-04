@@ -274,25 +274,6 @@ static ssize_t goodix_fod_status_store(struct device *dev,
        return count;
 }
 
-static ssize_t goodix_scr_off_fod_show(struct device *dev,
-									  struct device_attribute *attr, char *buf)
-{
-	struct goodix_ts_core *core_data = dev_get_drvdata(dev);
-
-	return snprintf(buf, 10, "%d\n", core_data->scr_off_fod);
-}
-
-static ssize_t goodix_scr_off_fod_store(struct device *dev,
-									   struct device_attribute *attr,
-									   const char *buf, size_t count)
-{
-	struct goodix_ts_core *core_data = dev_get_drvdata(dev);
-
-	sscanf(buf, "%u", &core_data->scr_off_fod);
-
-	return count;
-}
-
 static ssize_t goodix_ext_sysfs_show(struct kobject *kobj,
 		struct attribute *attr, char *buf)
 {
@@ -775,8 +756,6 @@ static DEVICE_ATTR(irq_info, S_IRUGO | S_IWUSR | S_IWGRP,
 		goodix_ts_irq_info_show, goodix_ts_irq_info_store);
 static DEVICE_ATTR(fod_status, (S_IRUGO | S_IWUSR | S_IWGRP),
                goodix_fod_status_show, goodix_fod_status_store);
-static DEVICE_ATTR(scr_off_fod, (S_IRUGO | S_IWUSR | S_IWGRP),
-	   goodix_scr_off_fod_show, goodix_scr_off_fod_store);
 
 static struct attribute *sysfs_attrs[] = {
 	&dev_attr_extmod_info.attr,
@@ -788,7 +767,6 @@ static struct attribute *sysfs_attrs[] = {
 	&dev_attr_read_cfg.attr,
 	&dev_attr_irq_info.attr,
 	&dev_attr_fod_status.attr,
-	&dev_attr_scr_off_fod.attr,
 	NULL,
 };
 
@@ -1884,11 +1862,9 @@ int goodix_ts_fb_notifier_callback(struct notifier_block *self,
 			blank == MSM_DRM_BLANK_LP1 || blank == MSM_DRM_BLANK_LP2)) {
 			if (atomic_read(&core_data->suspend_stat))
 				return 0;
-			if (blank == MSM_DRM_BLANK_POWERDOWN) {
-				core_data->fod_status = core_data->scr_off_fod;
+			if (blank == MSM_DRM_BLANK_POWERDOWN)
 				pr_info("suspend by %s,  aod_status=%d, fod_status=%d", "BLANK",
 					core_data->aod_status, core_data->fod_status);
-			}
 			else {
 				core_data->aod_status = 1;
 				pr_info("suspend by %s,  aod_status=%d, fod_status=%d", "DOZE",
@@ -2404,14 +2380,7 @@ static int goodix_ts_probe(struct platform_device *pdev)
                 goto out;
         }
 
-	if (sysfs_create_file(&core_data->gtp_touch_dev->kobj,
-            &dev_attr_scr_off_fod.attr)) {
-        ts_err("Failed to create scr_off_fod sysnode");
-        goto out;
-	}
-
 	core_data->fod_status = 0;
-	core_data->scr_off_fod = 0;
 	wake_lock_init(&core_data->tp_wakelock, WAKE_LOCK_SUSPEND, "touch_locker");
 #ifdef CONFIG_TOUCHSCREEN_GOODIX_DEBUG_FS
 	core_data->debugfs = debugfs_create_dir("tp_debug", NULL);
