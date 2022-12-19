@@ -124,4 +124,3 @@ out/
 upgrade_audio.sh
 upgrade_wifi.sh
 build.sh
-net/wireguard
